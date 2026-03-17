@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Herbarium of Daily Life</title>
+  <link rel="stylesheet" href="herbarium.css"/>
+</head>
+<body>
+
+  <!-- ── CARD ────────────────────────────────────── -->
+  <div class="herb-card" id="herbCard">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+
+    <div class="inst-header">
+      <div class="inst-title">Herbarium of Daily Life</div>
+      <div class="inst-sub">Specimen · Personal Collection</div>
+    </div>
+
+    <!-- photo mount -->
+    <div class="photo-mount" id="photoMount" onclick="document.getElementById('fi').click()">
+      <div class="pin tl"></div>
+      <div class="pin tr"></div>
+      <div class="pin bl"></div>
+      <div class="pin br"></div>
+      <img id="photoImg" alt="specimen photo"/>
+      <div class="mount-placeholder" id="mountPh">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="8" width="24" height="18" rx="1" stroke="#9a8a6a" stroke-width="1"/>
+          <circle cx="11" cy="14" r="2.5" stroke="#9a8a6a" stroke-width="1"/>
+          <path d="M4 22 L10 16 L15 21 L20 17 L28 26" stroke="#9a8a6a" stroke-width="1" fill="none"/>
+        </svg>
+        <span>tap to add specimen</span>
+      </div>
+    </div>
+    <input type="file" id="fi" accept="image/*" style="display:none" onchange="loadPhoto(event)"/>
+
+    <!-- label section -->
+    <div class="label-section">
+      <div class="label-row">
+        <span class="label-key">Locality</span>
+        <div class="label-val">
+          <input id="localityInput" placeholder="어디서?" maxlength="28"/>
+        </div>
+      </div>
+      <div class="label-row">
+        <span class="label-key">Annotation</span>
+        <div class="label-val">
+          <input id="noteInput" placeholder="오늘을 한 줄로" maxlength="30"/>
+        </div>
+      </div>
+      <div class="label-row">
+        <span class="label-key">Condition</span>
+        <div class="label-val italic" id="conditionVal">—</div>
+      </div>
+      <div class="label-row">
+        <span class="label-key">Weather</span>
+        <div class="label-val italic" id="weatherVal">—</div>
+      </div>
+      <div class="date-line">
+        <span class="date-text" id="dateText"></span>
+        <span class="sig-mood" id="sigMood"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CONTROLS ─────────────────────────────────── -->
+  <div class="controls">
+
+    <div>
+      <div class="ctrl-label">Condition — 오늘 상태</div>
+      <div class="chip-row" id="condGrid">
+        <button class="chip" data-v="만개"          onclick="setChip(this,'cond')">만개</button>
+        <button class="chip" data-v="시들시들"       onclick="setChip(this,'cond')">시들시들</button>
+        <button class="chip" data-v="동면 중"        onclick="setChip(this,'cond')">동면 중</button>
+        <button class="chip" data-v="생기 넘침"      onclick="setChip(this,'cond')">생기 넘침</button>
+        <button class="chip" data-v="납작하게 눌림"  onclick="setChip(this,'cond')">납작하게 눌림</button>
+        <button class="chip" data-v="잘 말려짐"      onclick="setChip(this,'cond')">잘 말려짐</button>
+        <button class="chip custom-chip"             onclick="toggleCustom('cond')">직접 입력 ···</button>
+      </div>
+      <div class="custom-row" id="condCustomRow">
+        <input id="condCustomInput" placeholder="나만의 상태 입력" maxlength="20"/>
+        <button onclick="applyCustom('cond')">확인</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="ctrl-label">Weather — 날씨</div>
+      <div class="chip-row" id="wxGrid">
+        <button class="chip" data-v="맑음"  onclick="setChip(this,'wx')">맑음</button>
+        <button class="chip" data-v="흐림"  onclick="setChip(this,'wx')">흐림</button>
+        <button class="chip" data-v="비"    onclick="setChip(this,'wx')">비</button>
+        <button class="chip" data-v="눈"    onclick="setChip(this,'wx')">눈</button>
+        <button class="chip" data-v="강풍"  onclick="setChip(this,'wx')">강풍</button>
+        <button class="chip custom-chip"    onclick="toggleCustom('wx')">직접 입력 ···</button>
+      </div>
+      <div class="custom-row" id="wxCustomRow">
+        <input id="wxCustomInput" placeholder="오늘의 날씨" maxlength="16"/>
+        <button onclick="applyCustom('wx')">확인</button>
+      </div>
+    </div>
+
+    <button class="save-btn" id="saveBtn" onclick="exportCard()">
+      표본 카드 저장하기 — 인스타용 이미지 다운로드
+    </button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- html2canvas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <script>
+    /* ── 날짜 세팅 ───────────────────────────── */
+    (function () {
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      document.getElementById('dateText').textContent =
+        `${now.getFullYear()} · ${month} · ${day}`;
+    })();
+
+    /* ── 사진 불러오기 ───────────────────────── */
+    function loadPhoto(e) {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = ev => {
+        const img = document.getElementById('photoImg');
+        img.src = ev.target.result;
+        img.style.display = 'block';
+        document.getElementById('mountPh').style.display = 'none';
+      };
+      r.readAsDataURL(f);
+    }
+
+    /* ── 칩 선택 ─────────────────────────────── */
+    function setChip(btn, type) {
+      const gridId = type === 'cond' ? 'condGrid' : 'wxGrid';
+      document.querySelectorAll('#' + gridId + ' .chip')
+        .forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyValue(type, btn.dataset.v);
+      document.getElementById(type === 'cond' ? 'condCustomRow' : 'wxCustomRow')
+        .classList.remove('show');
+    }
+
+    function applyValue(type, val) {
+      if (type === 'cond') {
+        document.getElementById('conditionVal').textContent = val || '—';
+        document.getElementById('sigMood').textContent = val || '';
+      } else {
+        document.getElementById('weatherVal').textContent = val || '—';
+      }
+    }
+
+    /* ── 직접 입력 ───────────────────────────── */
+    function toggleCustom(type) {
+      const rowId = type === 'cond' ? 'condCustomRow' : 'wxCustomRow';
+      const row = document.getElementById(rowId);
+      const isOpen = row.classList.contains('show');
+      document.getElementById('condCustomRow').classList.remove('show');
+      document.getElementById('wxCustomRow').classList.remove('show');
+      if (!isOpen) {
+        row.classList.add('show');
+        row.querySelector('input').focus();
+      }
+    }
+
+    function applyCustom(type) {
+      const inputId = type === 'cond' ? 'condCustomInput' : 'wxCustomInput';
+      const inp = document.getElementById(inputId);
+      const val = inp.value.trim();
+      if (!val) return;
+      const gridId = type === 'cond' ? 'condGrid' : 'wxGrid';
+      document.querySelectorAll('#' + gridId + ' .chip')
+        .forEach(b => b.classList.remove('active'));
+      applyValue(type, val);
+      document.getElementById(type === 'cond' ? 'condCustomRow' : 'wxCustomRow')
+        .classList.remove('show');
+      inp.value = '';
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      if (document.getElementById('condCustomRow').classList.contains('show')) applyCustom('cond');
+      if (document.getElementById('wxCustomRow').classList.contains('show'))   applyCustom('wx');
+    });
+
+    /* ── 토스트 ──────────────────────────────── */
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    /* ── 저장 / 내보내기 ─────────────────────── */
+    async function exportCard() {
+      const btn = document.getElementById('saveBtn');
+      btn.disabled = true;
+      btn.textContent = '캡처 중...';
+
+      // placeholder 임시 제거
+      const inputs = document.querySelectorAll('.label-val input');
+      const phs = [];
+      inputs.forEach(inp => {
+        phs.push(inp.placeholder);
+        if (!inp.value) inp.placeholder = '';
+      });
+
+      try {
+        const card = document.getElementById('herbCard');
+        const canvas = await html2canvas(card, {
+          scale: 3,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#f5f0e8',
+          logging: false,
+          imageTimeout: 0,
+        });
+
+        // 9:16 스토리 비율로 패딩 추가
+        const storyW = canvas.width;
+        const storyH = Math.round(storyW * 16 / 9);
+        const final = document.createElement('canvas');
+        final.width  = storyW;
+        final.height = storyH;
+        const ctx = final.getContext('2d');
+
+        ctx.fillStyle = '#ede7d5';
+        ctx.fillRect(0, 0, storyW, storyH);
+
+        // 용지 줄 텍스처
+        ctx.strokeStyle = 'rgba(160,140,100,0.07)';
+        ctx.lineWidth = 1;
+        for (let y = 0; y < storyH; y += 4) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(storyW, y); ctx.stroke();
+        }
+
+        const yOff = Math.round((storyH - canvas.height) / 2);
+        ctx.drawImage(canvas, 0, yOff);
+
+        // 다운로드
+        const d = new Date();
+        const fname = `herbarium_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.png`;
+        const link = document.createElement('a');
+        link.download = fname;
+        link.href = final.toDataURL('image/png', 1.0);
+        link.click();
+
+        showToast('저장 완료 — 갤러리에서 확인하세요');
+      } catch (err) {
+        showToast('저장 실패: ' + err.message);
+      } finally {
+        inputs.forEach((inp, i) => { inp.placeholder = phs[i]; });
+        btn.disabled = false;
+        btn.textContent = '표본 카드 저장하기 — 인스타용 이미지 다운로드';
+      }
+    }
+  </script>
+</body>
+</html>
